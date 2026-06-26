@@ -1,0 +1,119 @@
+<div id="prm_modal" class="prm_modal prm_hidden">
+    <div class="prm_backdrop" data-prm-action="close"></div>
+    <div class="prm_panel">
+        <div class="prm_header">
+            <div class="prm_header_copy">
+                <h2>⊹ Preset Manager ⊹</h2>
+                <p>Multi-select, bulk-delete and edit Chat Completion presets.</p>
+            </div>
+            <div class="prm_header_actions">
+                <button id="prm_refresh" type="button" class="menu_button menu_button_icon interactable" title="Refresh">
+                    <i class="fa-solid fa-arrows-rotate"></i>
+                    <span>Refresh</span>
+                </button>
+                <button id="prm_close" type="button" class="menu_button menu_button_icon interactable" data-prm-action="close" title="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                    <span>Close</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Selection bar (hidden until something is selected) -->
+        <div id="prm_select_bar" class="prm_select_bar prm_hidden">
+            <span id="prm_select_count" class="prm_select_count">0 selected</span>
+            <button id="prm_select_all" type="button" class="menu_button menu_button_icon interactable" title="Select all on page">
+                <i class="fa-solid fa-check-double"></i>
+                <span>Select All</span>
+            </button>
+            <button id="prm_deselect_all" type="button" class="menu_button menu_button_icon interactable" title="Clear selection">
+                <i class="fa-solid fa-xmark"></i>
+                <span>Cancel</span>
+            </button>
+            <button id="prm_bulk_delete" type="button" class="menu_button menu_button_icon interactable prm_btn_danger" title="Delete selected presets">
+                <i class="fa-solid fa-trash-can"></i>
+                <span>Delete</span>
+            </button>
+        </div>
+
+        <div class="prm_toolbar">
+            <div class="prm_search_wrap">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input id="prm_search" type="search" class="text_pole textarea_compact" placeholder="Search presets">
+            </div>
+            <select id="prm_sort" class="text_pole textarea_compact" title="Sort presets">
+                <option value="name-asc">Name A-Z</option>
+                <option value="name-desc">Name Z-A</option>
+            </select>
+        </div>
+
+        <div class="prm_content">
+            <section class="prm_main">
+                <div class="prm_main_header">
+                    <div id="prm_summary" class="prm_summary"></div>
+                </div>
+                <div id="prm_loading" class="prm_status prm_hidden">
+                    <i class="fa-solid fa-spinner fa-spin"></i>
+                    <span>Loading presets...</span>
+                </div>
+                <div id="prm_empty" class="prm_status prm_hidden"></div>
+                <div id="prm_grid" class="prm_grid"></div>
+            </section>
+        </div>
+
+        <!-- ── Preset editor overlay ─────────────────────────────────── -->
+        <div id="prm_editor" class="prm_editor prm_hidden">
+            <div class="prm_editor_header">
+                <button id="prm_editor_back" type="button" class="menu_button menu_button_icon interactable" title="Back to list">
+                    <i class="fa-solid fa-chevron-left"></i>
+                    <span>Back</span>
+                </button>
+                <div class="prm_editor_title">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span id="prm_editor_name">Preset</span>
+                </div>
+                <button id="prm_editor_save" type="button" class="menu_button menu_button_icon interactable prm_btn_save" title="Save changes">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>Save</span>
+                </button>
+            </div>
+
+            <div class="prm_tabs">
+                <button id="prm_tab_prompts" type="button" class="prm_tab is-active" data-prm-tab="prompts">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <span>Prompts</span>
+                </button>
+                <button id="prm_tab_params" type="button" class="prm_tab" data-prm-tab="params">
+                    <i class="fa-solid fa-vial"></i>
+                    <span>Parameters</span>
+                </button>
+            </div>
+
+            <div class="prm_editor_body">
+                <div id="prm_panel_prompts" class="prm_tab_panel is-active">
+                    <div class="prm_prompts_toolbar">
+                        <div class="prm_search_wrap">
+                            <i class="fa-solid fa-magnifying-glass"></i>
+                            <input id="prm_prompt_search" type="search" class="text_pole textarea_compact" placeholder="Search prompts">
+                        </div>
+                    </div>
+                    <div id="prm_prompts_list" class="prm_prompts_list"></div>
+                </div>
+                <div id="prm_panel_params" class="prm_tab_panel">
+                    <div id="prm_params_list" class="prm_params_list"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Fullscreen text editor ────────────────────────────────── -->
+        <div id="prm_fs" class="prm_fs prm_hidden">
+            <div class="prm_fs_header">
+                <span id="prm_fs_title" class="prm_fs_title">Edit</span>
+                <button id="prm_fs_done" type="button" class="menu_button menu_button_icon interactable" title="Done">
+                    <i class="fa-solid fa-check"></i>
+                    <span>Done</span>
+                </button>
+            </div>
+            <textarea id="prm_fs_textarea" class="text_pole prm_fs_textarea" spellcheck="false"></textarea>
+        </div>
+    </div>
+</div>
