@@ -66,6 +66,25 @@ function saveSettings() {
     ctx().saveSettingsDebounced();
 }
 
+// Load an extension HTML template ("manager" / "settings") robustly: try ST's
+// renderExtensionTemplateAsync first, then fall back to a raw fetch of the file
+// so a path/quirk in one method can't leave the whole extension non-functional.
+async function loadTemplate(name) {
+    try {
+        const html = await ctx().renderExtensionTemplateAsync(EXTENSION_NAME, name);
+        if (html && String(html).trim()) return html;
+    } catch (e) {
+        console.warn(`[${EXTENSION_NAME}] renderExtensionTemplateAsync('${name}') failed, trying fetch`, e);
+    }
+    try {
+        const res = await fetch(`scripts/extensions/${EXTENSION_NAME}/${name}.html`);
+        if (res.ok) return await res.text();
+    } catch (e) {
+        console.error(`[${EXTENSION_NAME}] fetch of ${name}.html failed`, e);
+    }
+    return '';
+}
+
 function presetManager() {
     try {
         return ctx().getPresetManager(API_ID) || null;
@@ -1098,7 +1117,7 @@ async function ensureDom() {
     if (state.dom.modal) return;
 
     const host = document.createElement('div');
-    host.innerHTML = await ctx().renderExtensionTemplateAsync(EXTENSION_NAME, 'manager');
+    host.innerHTML = await loadTemplate('manager');
     const modal = host.firstElementChild;
     if (!modal) throw new Error('Failed to render Preset Manager template');
 
@@ -1255,7 +1274,10 @@ function closeExtensionsMenu() {
 }
 
 function addWandButton() {
-    const container = document.getElementById('extensionsMenu');
+    const container = document.querySelector('#extensionsMenu .list-group')
+        || document.getElementById('extensionsMenu')
+        || document.getElementById('rightSendForm')
+        || document.querySelector('#extensions_menu, .options-content');
     if (!(container instanceof HTMLElement)) return false;
     if (document.getElementById('prm_wand_button')) return true;
 
@@ -1295,38 +1317,57 @@ function addWandButton() {
 /* ── Bootstrap ────────────────────────────────────────────────────────── */
 
 jQuery(async () => {
-    console.log(`[${EXTENSION_NAME}] Loading...`);
+    console.log(`[${EXTENSION_NAME}] Loading... (template path: ${EXTENSION_NAME})`);
+
+    try { getSettings(); } catch (e) { console.error(`[${EXTENSION_NAME}] settings init failed`, e); }
+
+    // 1) Wand-menu entry — the PRIMARY way to open the manager. Added first and
+    //    independently so nothing else can prevent the entry point from existing.
     try {
-        getSettings();
-        const settingsHtml = await ctx().renderExtensionTemplateAsync(EXTENSION_NAME, 'settings');
-        const wrap = document.createElement('div');
-        wrap.innerHTML = settingsHtml;
-        document.getElementById('extensions_settings')?.append(...wrap.childNodes);
-
-        bindSettingsUI();
-
-        // The wand container may not exist yet at load — retry a few times.
         if (!addWandButton()) {
             let tries = 0;
             const timer = setInterval(() => {
                 tries++;
-                if (addWandButton() || tries > 40) clearInterval(timer);
+                if (addWandButton() || tries > 60) clearInterval(timer);
             }, 500);
         }
+    } catch (e) { console.error(`[${EXTENSION_NAME}] wand button failed`, e); }
 
-        // Keep the active-card highlight fresh after preset switches.
-        try {
-            const { eventSource, eventTypes } = ctx();
-            const evt = eventTypes?.OAI_PRESET_CHANGED_AFTER;
-            if (eventSource && evt) {
-                eventSource.on(evt, () => {
-                    if (state.isOpen && state.dom.editor?.classList.contains('prm_hidden')) renderList();
-                });
-            }
-        } catch (e) { /* ignore */ }
+    // 2) Settings panel (Extensions tab) — secondary entry + toggles.
+    try {
+        const settingsHtml = await loadTemplate('settings');
+        if (settingsHtml) {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = settingsHtml;
+            document.getElementById('extensions_settings')?.append(...wrap.childNodes);
+            bindSettingsUI();
+        }
+    } catch (e) { console.error(`[${EXTENSION_NAME}] settings panel failed`, e); }
 
-        console.log(`[${EXTENSION_NAME}] Loaded successfully`);
-    } catch (error) {
-        console.error(`[${EXTENSION_NAME}] Failed to load:`, error);
-    }
+    // 3) Slash command — a guaranteed entry point: /preset-manager (alias /pm)
+    try {
+        const c = ctx();
+        const { SlashCommandParser, SlashCommand } = c;
+        if (SlashCommandParser && SlashCommand) {
+            SlashCommandParser.addCommandObject(SlashCommand.fromProps({
+                name: 'preset-manager',
+                aliases: ['pm'],
+                callback: () => { openManager(); return ''; },
+                helpString: 'Open the Preset Manager.',
+            }));
+        }
+    } catch (e) { /* slash command is optional */ }
+
+    // 4) Keep the active-card highlight fresh after preset switches.
+    try {
+        const { eventSource, eventTypes } = ctx();
+        const evt = eventTypes?.OAI_PRESET_CHANGED_AFTER;
+        if (eventSource && evt) {
+            eventSource.on(evt, () => {
+                if (state.isOpen && state.dom.editor?.classList.contains('prm_hidden')) renderList();
+            });
+        }
+    } catch (e) { /* ignore */ }
+
+    console.log(`[${EXTENSION_NAME}] Loaded`);
 });
