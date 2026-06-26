@@ -29,7 +29,6 @@ const API_ID = 'openai'; // Chat Completion
 
 const DEFAULT_SETTINGS = {
     enabled: true,
-    showSelectIcon: true,
     confirmDelete: true,
     sort: 'name-asc',
 };
@@ -42,7 +41,6 @@ const state = {
     sort: 'name-asc',
     editing: null,        // { name, data }  (data = deep clone of preset JSON)
     promptSearch: '',
-    fsTarget: null,       // { getValue, setValue } for fullscreen editor
     dom: {},
 };
 
@@ -1034,16 +1032,50 @@ function applyParamValue(key, el) {
 
 /* ── Fullscreen text editor ───────────────────────────────────────────── */
 
-function openFullscreen(title, getValue, setValue) {
-    state.fsTarget = { setValue };
-    state.dom.fsTitle.textContent = title || 'Edit';
-    state.dom.fsTextarea.value = getValue();
-    state.dom.fs.classList.remove('prm_hidden');
-    setTimeout(() => state.dom.fsTextarea.focus(), 30);
-    // Live mirror back as the user types.
-    state.dom.fsTextarea.oninput = () => {
-        if (state.fsTarget?.setValue) state.fsTarget.setValue(state.dom.fsTextarea.value);
-    };
+// Open SillyTavern's NATIVE maximized-textarea popup (the same one its own
+// "expand editor" button uses). This means it looks and behaves exactly like
+// the rest of ST, and editor extensions such as CodeMirror Pro — which hook
+// into `dialog ... textarea.maximized_textarea` — light up automatically.
+// `onCommit(value)` runs with the edited text only if the user confirms.
+async function openFullscreen(title, getValue, onCommit) {
+    const c = ctx();
+    const callGenericPopup = c.callGenericPopup;
+    const POPUP_TYPE = c.POPUP_TYPE;
+    const POPUP_RESULT = c.POPUP_RESULT;
+    if (!callGenericPopup || !POPUP_TYPE) {
+        // Extremely old ST without the popup API — fall back to a prompt.
+        const edited = window.prompt(title || 'Edit', getValue());
+        if (edited !== null && edited !== undefined) onCommit(edited);
+        return;
+    }
+
+    // Replicate ST's exact wrapper + maximized textarea structure.
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('height100p', 'wide100p', 'flex-container',
+        'flexFlowColumn', 'justifyCenter', 'alignitemscenter');
+
+    if (title) {
+        const h = document.createElement('h3');
+        h.textContent = title;
+        h.style.margin = '0 0 8px';
+        h.style.flex = '0 0 auto';
+        wrapper.appendChild(h);
+    }
+
+    const textarea = document.createElement('textarea');
+    textarea.classList.add('height100p', 'wide100p', 'maximized_textarea', 'monospace');
+    textarea.value = String(getValue() ?? '');
+    wrapper.appendChild(textarea);
+
+    const result = await callGenericPopup(wrapper, POPUP_TYPE.TEXT, '', {
+        wide: true,
+        large: true,
+        okButton: 'Save',
+        cancelButton: 'Cancel',
+    });
+
+    const affirmative = POPUP_RESULT ? result === POPUP_RESULT.AFFIRMATIVE : !!result;
+    if (affirmative) onCommit(textarea.value);
 }
 
 function openFullscreenForPrompt(id, row) {
@@ -1057,10 +1089,7 @@ function openFullscreenForPrompt(id, row) {
 }
 
 function closeFullscreen() {
-    state.fsTarget = null;
-    if (!state.dom.fs) return;
-    state.dom.fsTextarea.oninput = null;
-    state.dom.fs.classList.add('prm_hidden');
+    // Native popup manages its own lifecycle; nothing to tear down.
 }
 
 /* ── Open / close ─────────────────────────────────────────────────────── */
@@ -1102,11 +1131,6 @@ async function ensureDom() {
             prompts: modal.querySelector('#prm_panel_prompts'),
             params: modal.querySelector('#prm_panel_params'),
         },
-        // Fullscreen
-        fs: modal.querySelector('#prm_fs'),
-        fsTitle: modal.querySelector('#prm_fs_title'),
-        fsDone: modal.querySelector('#prm_fs_done'),
-        fsTextarea: modal.querySelector('#prm_fs_textarea'),
     };
 
     bindEvents();
@@ -1151,12 +1175,10 @@ function bindEvents() {
     d.paramsList.addEventListener('change', onParamsInput);
     d.paramsList.addEventListener('click', onParamsClick);
 
-    // Fullscreen
-    d.fsDone.addEventListener('click', closeFullscreen);
-
     document.addEventListener('keydown', (e) => {
         if (!state.isOpen || e.key !== 'Escape') return;
-        if (!d.fs.classList.contains('prm_hidden')) { closeFullscreen(); return; }
+        // If ST's native maximize popup is open, let it handle Escape itself.
+        if (document.querySelector('dialog.popup[open] textarea.maximized_textarea')) return;
         if (!d.editor.classList.contains('prm_hidden')) { closeEditor(); return; }
         closeManager();
     });
@@ -1168,6 +1190,9 @@ async function openManager() {
     state.isOpen = true;
     state.sort = getSettings().sort || 'name-asc';
     state.dom.modal.classList.remove('prm_hidden');
+    // Lock the page behind the modal so it can't scroll horizontally/vertically
+    // (same approach as Image Manager).
+    document.body.classList.add('prm_modal_open');
     state.dom.sort.value = state.sort;
     state.dom.search.value = state.search;
     closeEditor();
@@ -1181,9 +1206,10 @@ function closeManager() {
     closeFullscreen();
     closeEditor();
     state.dom.modal.classList.add('prm_hidden');
+    document.body.classList.remove('prm_modal_open');
 }
 
-/* ── Settings injection + entry points ────────────────────────────────── */
+/* ── Settings panel + entry points ────────────────────────────────────── */
 
 function bindSettingsUI() {
     const s = getSettings();
@@ -1191,7 +1217,6 @@ function bindSettingsUI() {
 
     const openBtn = $('prm_open_button');
     const enabled = $('prm_enabled');
-    const showIcon = $('prm_show_select_icon');
     const confirmDelete = $('prm_confirm_delete');
 
     if (openBtn) openBtn.addEventListener('click', openManager);
@@ -1202,15 +1227,6 @@ function bindSettingsUI() {
             s.enabled = enabled.checked;
             saveSettings();
             if (!s.enabled && state.isOpen) closeManager();
-            updateSelectIcon();
-        });
-    }
-    if (showIcon) {
-        showIcon.checked = s.showSelectIcon;
-        showIcon.addEventListener('change', () => {
-            s.showSelectIcon = showIcon.checked;
-            saveSettings();
-            updateSelectIcon();
         });
     }
     if (confirmDelete) {
@@ -1222,46 +1238,58 @@ function bindSettingsUI() {
     }
 }
 
-// Small button next to the Chat Completion preset <select>.
-function updateSelectIcon() {
-    const s = getSettings();
-    const existing = document.getElementById('prm_select_icon');
-    const wantIcon = s.enabled && s.showSelectIcon;
+/* ── Wand (extensions) menu entry — opens manager directly on click ─────── */
 
-    if (!wantIcon) {
-        existing?.remove();
-        return;
-    }
-    if (existing) return;
-
-    const sel = document.getElementById('settings_preset_openai');
-    if (!sel) return;
-    // Place it inside the same flex row as the preset dropdown controls.
-    const host = sel.closest('.preset_settings, .flex-container, div') || sel.parentElement;
-    if (!host) return;
-
-    const btn = document.createElement('div');
-    btn.id = 'prm_select_icon';
-    btn.className = 'menu_button menu_button_icon interactable prm_select_icon';
-    btn.title = 'Open Preset Manager';
-    btn.innerHTML = '<i class="fa-solid fa-sliders"></i>';
-    btn.addEventListener('click', openManager);
-    sel.insertAdjacentElement('afterend', btn);
+// Close the wand / extensions dropdown the same way SillyTavern does (jQuery
+// hide / fadeOut, not a CSS class), with plain-DOM fallbacks.
+function closeExtensionsMenu() {
+    try {
+        if (window.jQuery) {
+            const $ = window.jQuery;
+            $('#extensionsMenu').fadeOut?.(150);
+            $('#extensionsMenu').hide?.();
+        }
+    } catch (e) { /* ignore */ }
+    const menu = document.getElementById('extensionsMenu');
+    if (menu) menu.style.display = 'none';
 }
 
-function startSelectIconGuard() {
-    // The preset controls can be re-rendered; re-add the icon periodically.
-    updateSelectIcon();
-    let attempts = 0;
-    const timer = setInterval(() => {
-        attempts++;
-        if (getSettings().showSelectIcon && getSettings().enabled
-            && !document.getElementById('prm_select_icon')
-            && document.getElementById('settings_preset_openai')) {
-            updateSelectIcon();
-        }
-        if (attempts > 120) clearInterval(timer); // ~60s of guarding
-    }, 500);
+function addWandButton() {
+    const container = document.getElementById('extensionsMenu');
+    if (!(container instanceof HTMLElement)) return false;
+    if (document.getElementById('prm_wand_button')) return true;
+
+    const btn = document.createElement('div');
+    btn.id = 'prm_wand_button';
+    btn.classList.add('list-group-item', 'flex-container', 'flexGap5', 'interactable');
+    btn.tabIndex = 0;
+    btn.setAttribute('role', 'button');
+    btn.style.cursor = 'pointer';
+    btn.title = 'Open Preset Manager';
+
+    const icon = document.createElement('div');
+    icon.classList.add('fa-solid', 'fa-sliders', 'extensionsMenuExtensionButton');
+    const text = document.createElement('span');
+    text.textContent = 'Preset Manager';
+
+    btn.append(icon, text);
+
+    // Guard against double-fire (touch devices fire touchend AND a synthetic click).
+    let lastFire = 0;
+    const activate = (e) => {
+        // Only preventDefault — do NOT stopPropagation, so ST can auto-close the menu.
+        e.preventDefault();
+        const now = Date.now();
+        if (now - lastFire < 400) return;
+        lastFire = now;
+        openManager();
+        closeExtensionsMenu();
+    };
+    btn.addEventListener('click', activate);
+    btn.addEventListener('touchend', activate, { passive: false });
+
+    container.appendChild(btn);
+    return true;
 }
 
 /* ── Bootstrap ────────────────────────────────────────────────────────── */
@@ -1276,15 +1304,22 @@ jQuery(async () => {
         document.getElementById('extensions_settings')?.append(...wrap.childNodes);
 
         bindSettingsUI();
-        startSelectIconGuard();
 
-        // Keep the active-card highlight fresh + re-add icon after preset switches.
+        // The wand container may not exist yet at load — retry a few times.
+        if (!addWandButton()) {
+            let tries = 0;
+            const timer = setInterval(() => {
+                tries++;
+                if (addWandButton() || tries > 40) clearInterval(timer);
+            }, 500);
+        }
+
+        // Keep the active-card highlight fresh after preset switches.
         try {
             const { eventSource, eventTypes } = ctx();
             const evt = eventTypes?.OAI_PRESET_CHANGED_AFTER;
             if (eventSource && evt) {
                 eventSource.on(evt, () => {
-                    updateSelectIcon();
                     if (state.isOpen && state.dom.editor?.classList.contains('prm_hidden')) renderList();
                 });
             }

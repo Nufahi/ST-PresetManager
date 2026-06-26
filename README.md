@@ -18,13 +18,12 @@ in cleanly separated tabs.
   - **Parameters** — grouped into round, collapsible sections (Sampling, Penalties,
     Context & Length, Reasoning & Output, Utility Prompts, plus an Other/advanced section).
     Long text parameters also get a fullscreen editor.
-- **Turn the manager on/off** from the extension settings, and optionally show a small
-  open-button next to the preset dropdown.
+- **Turn the manager on/off** from the extension settings.
 
 ## Opening the manager
 
-- Extensions panel → **⊹ PRESET MANAGER ⊹** → *Open Preset Manager*, or
-- the small slider icon next to the Chat Completion preset dropdown (toggle in settings).
+- Open the wand (extensions) menu and click **Preset Manager**, or
+- Extensions panel → **Preset Manager** → *Open Preset Manager*.
 
 ## Installation
 

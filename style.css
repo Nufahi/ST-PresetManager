@@ -13,6 +13,10 @@
 
 .prm_hidden { display: none !important; }
 
+/* Lock the page behind the modal so the screen can't scroll (matches the
+   Image Manager / Lorebook Manager behavior). */
+body.prm_modal_open { overflow: hidden; }
+
 /* ── Settings card ────────────────────────────────────────────────────── */
 .prm_settings_card { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; }
 .prm_settings_intro { margin: 0; color: var(--prm-muted); font-size: 0.9rem; }
@@ -58,6 +62,14 @@
 
 .prm_modal .menu_button,
 .prm_modal .menu_button_icon { display: inline-flex; align-items: center; gap: 8px; filter: none; }
+
+/* Containment: nothing inside the panel may overflow horizontally. Every
+   control is border-boxed and capped at full width so the screen never gains
+   a horizontal scrollbar on mobile. */
+.prm_panel, .prm_panel * { box-sizing: border-box; }
+.prm_panel input,
+.prm_panel select,
+.prm_panel textarea { max-width: 100%; }
 
 /* ── Header ───────────────────────────────────────────────────────────── */
 .prm_header { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
@@ -150,8 +162,11 @@
     background: var(--prm-surface);
     border-radius: 16px;
     z-index: 10;
+    overflow: hidden;
 }
-.prm_editor_header { display: flex; align-items: center; gap: 10px; }
+.prm_editor_body { overflow-x: hidden; }
+.prm_editor_header { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.prm_editor_header .prm_editor_title { overflow: hidden; }
 .prm_editor_title { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; font-weight: 700; font-size: 1.05rem; }
 .prm_editor_title span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prm_editor_title i { color: var(--prm-accent); }
@@ -241,20 +256,6 @@
 }
 .prm_param_input { font-size: 0.88rem; }
 textarea.prm_param_input { resize: vertical; min-height: 64px; }
-
-/* ── Fullscreen text editor ───────────────────────────────────────────── */
-.prm_fs {
-    position: absolute; inset: 0; z-index: 50;
-    display: flex; flex-direction: column; gap: 10px;
-    padding: 12px; background: var(--prm-surface);
-    border-radius: 16px;
-}
-.prm_fs_header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.prm_fs_title { font-weight: 700; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.prm_fs_textarea {
-    flex: 1 1 auto; width: 100%; box-sizing: border-box; resize: none;
-    font-family: var(--monoFontFamily, monospace); font-size: 0.95rem; line-height: 1.5;
-}
 
 /* ══════════════════════════════════════════════════════════════════════
    RESPONSIVE — tablet / phone (proven lorebook pattern)
